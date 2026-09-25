@@ -3,36 +3,42 @@
     "id": 1,
     "category": "overview",
     "mission": "apollo_11",
-    "question": "What was the main objective of the Apollo 11 mission?"
+    "question": "What was the main objective of the Apollo 11 mission?",
+    "reference_answer": "The main objective of Apollo 11 was to perform a crewed lunar landing and return the astronauts safely to Earth."
   },
   {
     "id": 2,
     "category": "emergency",
     "mission": "apollo_13",
-    "question": "What major emergency occurred during Apollo 13?"
+    "question": "What major emergency occurred during Apollo 13?",
+    "reference_answer": "Apollo 13 suffered an oxygen tank explosion that damaged the spacecraft and forced the crew to abort the planned Moon landing."
   },
   {
     "id": 3,
     "category": "crew",
     "mission": "apollo_11",
-    "question": "Who were the crew members of Apollo 11?"
+    "question": "Who were the crew members of Apollo 11?",
+    "reference_answer": "Apollo 11 was crewed by Neil Armstrong, Buzz Aldrin, and Michael Collins."
   },
   {
     "id": 4,
     "category": "technical",
     "mission": "apollo_13",
-    "question": "What technical problems affected Apollo 13 after the oxygen tank failure?"
+    "question": "What technical problems affected Apollo 13 after the oxygen tank failure?",
+    "reference_answer": "The oxygen tank failure caused loss of electrical power, oxygen, and water in the command and service modules, requiring the lunar module to serve as a lifeboat."
   },
   {
     "id": 5,
     "category": "disaster_analysis",
     "mission": "challenger",
-    "question": "What happened during the Challenger disaster?"
+    "question": "What happened during the Challenger disaster?",
+    "reference_answer": "Space Shuttle Challenger broke apart shortly after launch, resulting in the loss of all seven crew members."
   },
   {
     "id": 6,
     "category": "timeline",
     "mission": "apollo_11",
-    "question": "What were the major events in the Apollo 11 mission timeline?"
+    "question": "What were the major events in the Apollo 11 mission timeline?",
+    "reference_answer": "Apollo 11 launched from Earth, traveled to lunar orbit, landed astronauts on the Moon, returned them to lunar orbit, and then safely returned the crew to Earth."
   }
 ]
