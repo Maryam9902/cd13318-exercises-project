@@ -1,1 +1,38 @@
-
+[
+  {
+    "id": 1,
+    "category": "overview",
+    "mission": "apollo_11",
+    "question": "What was the main objective of the Apollo 11 mission?"
+  },
+  {
+    "id": 2,
+    "category": "emergency",
+    "mission": "apollo_13",
+    "question": "What major emergency occurred during Apollo 13?"
+  },
+  {
+    "id": 3,
+    "category": "crew",
+    "mission": "apollo_11",
+    "question": "Who were the crew members of Apollo 11?"
+  },
+  {
+    "id": 4,
+    "category": "technical",
+    "mission": "apollo_13",
+    "question": "What technical problems affected Apollo 13 after the oxygen tank failure?"
+  },
+  {
+    "id": 5,
+    "category": "disaster_analysis",
+    "mission": "challenger",
+    "question": "What happened during the Challenger disaster?"
+  },
+  {
+    "id": 6,
+    "category": "timeline",
+    "mission": "apollo_11",
+    "question": "What were the major events in the Apollo 11 mission timeline?"
+  }
+]
