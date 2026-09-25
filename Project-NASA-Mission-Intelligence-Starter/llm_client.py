@@ -9,20 +9,22 @@ def generate_response(
     conversation_history: List[Dict],
     model: str = "gpt-3.5-turbo"
 ) -> str:
-    """Generate response using OpenAI with context"""
+    """Generate response using OpenAI with retrieved NASA context."""
 
-    # Define system prompt
     system_prompt = """
-You are a NASA Mission Intelligence Assistant.
+You are a NASA mission expert assistant.
 
-Answer the user's questions using the provided NASA mission context.
-Be accurate, concise, and factual.
+Answer the user's question using the retrieved NASA mission context provided to you.
 
-If the answer cannot be found in the provided context,
-say that the available mission data does not contain enough information.
+Important instructions:
+- Base your answer on the retrieved context.
+- Cite the relevant retrieved source labels in your answer.
+- Use citation labels such as [Source 1], [Source 2], [Source 3].
+- Do not invent source citations.
+- If the retrieved context does not contain enough information, clearly say so.
+- Keep the answer factual, clear, and concise.
 """
 
-    # Set context in messages
     messages = [
         {
             "role": "system",
@@ -30,37 +32,41 @@ say that the available mission data does not contain enough information.
         },
         {
             "role": "system",
-            "content": f"Retrieved NASA Mission Context:\n{context}"
+            "content": (
+                "Retrieved NASA Mission Context:\n\n"
+                f"{context}"
+            )
         }
     ]
 
-    # Add chat history
     for message in conversation_history:
         if (
             isinstance(message, dict)
-            and "role" in message
+            and message.get("role") in {"user", "assistant"}
             and "content" in message
         ):
-            messages.append({
-                "role": message["role"],
-                "content": message["content"]
-            })
+            messages.append(
+                {
+                    "role": message["role"],
+                    "content": message["content"]
+                }
+            )
 
-    # Add current user message
-    messages.append({
-        "role": "user",
-        "content": user_message
-    })
+    messages.append(
+        {
+            "role": "user",
+            "content": user_message
+        }
+    )
 
-    # Create OpenAI client
-    client = OpenAI(api_key=openai_key)
+    client = OpenAI(
+        api_key=openai_key
+    )
 
-    # Send request to OpenAI
     response = client.chat.completions.create(
         model=model,
         messages=messages,
         temperature=0.2
     )
 
-    # Return response
     return response.choices[0].message.content
