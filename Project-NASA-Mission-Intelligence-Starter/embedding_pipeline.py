@@ -2,39 +2,34 @@
 """
 ChromaDB Embedding Pipeline for NASA Space Mission Data - Text Files Only
 
-This script reads parsed text data from various NASA space mission folders and creates
-a permanent ChromaDB collection with OpenAI embeddings for RAG applications.
-Optimized to process only text files to avoid duplication with JSON versions.
+This script reads parsed text data from various NASA space mission folders
+and creates a permanent ChromaDB collection with OpenAI embeddings
+for RAG applications.
 
-Supported data sources:
-- Apollo 11 extracted data (text files only)
-- Apollo 13 extracted data (text files only)
-- Apollo 11 Textract extracted data (text files only)
-- Challenger transcribed audio data (text files only)
+Optimized to process only text files to avoid duplication with JSON versions.
 """
 
-import os
-import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Tuple
 import chromadb
 from chromadb.config import Settings
-import openai
 from openai import OpenAI
-import hashlib
 import time
 from datetime import datetime
 import argparse
 from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
 
 
-# Configure logging
+# ---------------------------------------------------------
+# Logging
+# ---------------------------------------------------------
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('chroma_embedding_text_only.log'),
+        logging.FileHandler("chroma_embedding_text_only.log"),
         logging.StreamHandler()
     ]
 )
@@ -42,8 +37,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------
+# Embedding Pipeline
+# ---------------------------------------------------------
+
 class ChromaEmbeddingPipelineTextOnly:
-    """Pipeline for creating ChromaDB collections with OpenAI embeddings - Text files only"""
+    """
+    Pipeline for creating ChromaDB collections
+    with OpenAI embeddings - Text files only.
+    """
 
     def __init__(
         self,
@@ -55,15 +57,7 @@ class ChromaEmbeddingPipelineTextOnly:
         chunk_overlap: int = 200
     ):
         """
-        Initialize the embedding pipeline
-
-        Args:
-            openai_api_key: OpenAI API key
-            chroma_persist_directory: Directory to persist ChromaDB
-            collection_name: Name of the ChromaDB collection
-            embedding_model: OpenAI embedding model to use
-            chunk_size: Maximum size of text chunks
-            chunk_overlap: Overlap between chunks
+        Initialize the embedding pipeline.
         """
 
         self.openai_api_key = openai_api_key
@@ -73,18 +67,18 @@ class ChromaEmbeddingPipelineTextOnly:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-        # Initialize OpenAI client
+        # OpenAI client
         self.openai_client = OpenAI(
             api_key=openai_api_key
         )
 
-        # OpenAI embedding function for ChromaDB
+        # Chroma embedding function
         self.embedding_function = OpenAIEmbeddingFunction(
             api_key=openai_api_key,
             model_name=embedding_model
         )
 
-        # Initialize persistent ChromaDB client
+        # Persistent ChromaDB client
         self.chroma_client = chromadb.PersistentClient(
             path=chroma_persist_directory,
             settings=Settings(
@@ -92,7 +86,7 @@ class ChromaEmbeddingPipelineTextOnly:
             )
         )
 
-        # Create or get collection
+        # Create or retrieve collection
         self.collection = self.chroma_client.get_or_create_collection(
             name=collection_name,
             embedding_function=self.embedding_function
@@ -102,20 +96,19 @@ class ChromaEmbeddingPipelineTextOnly:
             f"Initialized collection: {collection_name}"
         )
 
+
+    # -----------------------------------------------------
+    # Text Chunking
+    # -----------------------------------------------------
+
     def chunk_text(
         self,
         text: str,
         metadata: Dict[str, Any]
     ) -> List[Tuple[str, Dict[str, Any]]]:
         """
-        Split text into chunks with metadata
-
-        Args:
-            text: Text to chunk
-            metadata: Base metadata for the text
-
-        Returns:
-            List of (chunk_text, chunk_metadata) tuples
+        Split text into chunks with overlap
+        and metadata.
         """
 
         if not text or not text.strip():
@@ -123,7 +116,7 @@ class ChromaEmbeddingPipelineTextOnly:
 
         text = text.strip()
 
-        # Handle short text
+        # Short text
         if len(text) <= self.chunk_size:
 
             chunk_metadata = metadata.copy()
@@ -150,7 +143,7 @@ class ChromaEmbeddingPipelineTextOnly:
                 len(text)
             )
 
-            # Try to break at a sentence boundary
+            # Try to stop at sentence boundary
             if end < len(text):
 
                 search_start = start + int(
@@ -158,26 +151,10 @@ class ChromaEmbeddingPipelineTextOnly:
                 )
 
                 sentence_positions = [
-                    text.rfind(
-                        ". ",
-                        search_start,
-                        end
-                    ),
-                    text.rfind(
-                        "? ",
-                        search_start,
-                        end
-                    ),
-                    text.rfind(
-                        "! ",
-                        search_start,
-                        end
-                    ),
-                    text.rfind(
-                        "\n",
-                        search_start,
-                        end
-                    )
+                    text.rfind(". ", search_start, end),
+                    text.rfind("? ", search_start, end),
+                    text.rfind("! ", search_start, end),
+                    text.rfind("\n", search_start, end)
                 ]
 
                 best_position = max(
@@ -193,21 +170,10 @@ class ChromaEmbeddingPipelineTextOnly:
 
                 chunk_metadata = metadata.copy()
 
-                chunk_metadata[
-                    "chunk_index"
-                ] = chunk_index
-
-                chunk_metadata[
-                    "chunk_start"
-                ] = start
-
-                chunk_metadata[
-                    "chunk_end"
-                ] = end
-
-                chunk_metadata[
-                    "chunk_size"
-                ] = len(chunk)
+                chunk_metadata["chunk_index"] = chunk_index
+                chunk_metadata["chunk_start"] = start
+                chunk_metadata["chunk_end"] = end
+                chunk_metadata["chunk_size"] = len(chunk)
 
                 chunks.append(
                     (
@@ -221,9 +187,7 @@ class ChromaEmbeddingPipelineTextOnly:
             if end >= len(text):
                 break
 
-            next_start = (
-                end - self.chunk_overlap
-            )
+            next_start = end - self.chunk_overlap
 
             if next_start <= start:
                 next_start = end
@@ -233,24 +197,21 @@ class ChromaEmbeddingPipelineTextOnly:
         total_chunks = len(chunks)
 
         for _, chunk_metadata in chunks:
-            chunk_metadata[
-                "total_chunks"
-            ] = total_chunks
+            chunk_metadata["total_chunks"] = total_chunks
 
         return chunks
+
+
+    # -----------------------------------------------------
+    # Document Exists
+    # -----------------------------------------------------
 
     def check_document_exists(
         self,
         doc_id: str
     ) -> bool:
         """
-        Check if a document with the given ID already exists in the collection
-
-        Args:
-            doc_id: Document ID to check
-
-        Returns:
-            True if document exists, False otherwise
+        Check whether a document exists.
         """
 
         try:
@@ -273,6 +234,11 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return False
 
+
+    # -----------------------------------------------------
+    # Update Document
+    # -----------------------------------------------------
+
     def update_document(
         self,
         doc_id: str,
@@ -280,25 +246,15 @@ class ChromaEmbeddingPipelineTextOnly:
         metadata: Dict[str, Any]
     ) -> bool:
         """
-        Update an existing document in the collection
-
-        Args:
-            doc_id: Document ID to update
-            text: New text content
-            metadata: New metadata
-
-        Returns:
-            True if successful, False otherwise
+        Update an existing document.
         """
 
         try:
 
-            # Get new embedding
             embedding = self.get_embedding(
                 text
             )
 
-            # Update document
             self.collection.update(
                 ids=[doc_id],
                 documents=[text],
@@ -321,18 +277,17 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return False
 
+
+    # -----------------------------------------------------
+    # Delete by Source
+    # -----------------------------------------------------
+
     def delete_documents_by_source(
         self,
         source_pattern: str
     ) -> int:
         """
-        Delete all documents from a specific source.
-
-        Args:
-            source_pattern: Pattern to match source names
-
-        Returns:
-            Number of documents deleted
+        Delete documents matching a source pattern.
         """
 
         try:
@@ -341,17 +296,32 @@ class ChromaEmbeddingPipelineTextOnly:
 
             ids_to_delete = []
 
+            metadatas = all_docs.get(
+                "metadatas",
+                []
+            )
+
+            ids = all_docs.get(
+                "ids",
+                []
+            )
+
             for i, metadata in enumerate(
-                all_docs["metadatas"]
+                metadatas
             ):
 
-                if source_pattern in metadata.get(
-                    "source",
-                    ""
+                if (
+                    metadata
+                    and
+                    source_pattern
+                    in metadata.get(
+                        "source",
+                        ""
+                    )
                 ):
 
                     ids_to_delete.append(
-                        all_docs["ids"][i]
+                        ids[i]
                     )
 
             if ids_to_delete:
@@ -372,15 +342,12 @@ class ChromaEmbeddingPipelineTextOnly:
                     ids_to_delete
                 )
 
-            else:
+            logger.info(
+                "No documents found matching "
+                f"source pattern: {source_pattern}"
+            )
 
-                logger.info(
-                    "No documents found "
-                    "matching source pattern: "
-                    f"{source_pattern}"
-                )
-
-                return 0
+            return 0
 
         except Exception as e:
 
@@ -391,44 +358,43 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return 0
 
+
+    # -----------------------------------------------------
+    # Get File Documents
+    # -----------------------------------------------------
+
     def get_file_documents(
         self,
         file_path: Path
     ) -> List[str]:
         """
-        Get all document IDs for a specific file
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            List of document IDs for the file
+        Get all document IDs belonging
+        to one exact file.
         """
 
         try:
-
-            source = file_path.stem
-
-            mission = (
-                self.extract_mission_from_path(
-                    file_path
-                )
-            )
 
             all_docs = self.collection.get()
 
             file_doc_ids = []
 
+            target_path = str(
+                file_path
+            )
+
             for i, metadata in enumerate(
-                all_docs["metadatas"]
+                all_docs.get(
+                    "metadatas",
+                    []
+                )
             ):
 
                 if (
-                    metadata.get("source")
-                    == source
+                    metadata
                     and
-                    metadata.get("mission")
-                    == mission
+                    metadata.get(
+                        "file_path"
+                    ) == target_path
                 ):
 
                     file_doc_ids.append(
@@ -446,18 +412,17 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return []
 
+
+    # -----------------------------------------------------
+    # OpenAI Embedding
+    # -----------------------------------------------------
+
     def get_embedding(
         self,
         text: str
     ) -> List[float]:
         """
-        Get OpenAI embedding for text
-
-        Args:
-            text: Text to embed
-
-        Returns:
-            Embedding vector
+        Get OpenAI embedding.
         """
 
         try:
@@ -486,14 +451,18 @@ class ChromaEmbeddingPipelineTextOnly:
 
             raise
 
+
+    # -----------------------------------------------------
+    # Stable Document ID
+    # -----------------------------------------------------
+
     def generate_document_id(
         self,
         file_path: Path,
         metadata: Dict[str, Any]
     ) -> str:
         """
-        Generate stable document ID based on
-        file path and chunk position.
+        Generate stable document ID.
 
         Format:
         mission_source_chunk_0001
@@ -535,19 +504,17 @@ class ChromaEmbeddingPipelineTextOnly:
             f"{chunk_index:04d}"
         )
 
+
+    # -----------------------------------------------------
+    # Process Text File
+    # -----------------------------------------------------
+
     def process_text_file(
         self,
         file_path: Path
     ) -> List[Tuple[str, Dict[str, Any]]]:
         """
-        Process plain text files with enhanced
-        metadata extraction
-
-        Args:
-            file_path: Path to text file
-
-        Returns:
-            List of (text, metadata) tuples
+        Read and process a text file.
         """
 
         try:
@@ -564,6 +531,7 @@ class ChromaEmbeddingPipelineTextOnly:
                 return []
 
             metadata = {
+
                 "source":
                     file_path.stem,
 
@@ -612,11 +580,15 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return []
 
+
+    # -----------------------------------------------------
+    # Mission Extraction
+    # -----------------------------------------------------
+
     def extract_mission_from_path(
         self,
         file_path: Path
     ) -> str:
-        """Extract mission name from file path"""
 
         path_str = str(
             file_path
@@ -639,14 +611,17 @@ class ChromaEmbeddingPipelineTextOnly:
         elif "challenger" in path_str:
             return "challenger"
 
-        else:
-            return "unknown"
+        return "unknown"
+
+
+    # -----------------------------------------------------
+    # Data Type
+    # -----------------------------------------------------
 
     def extract_data_type_from_path(
         self,
         file_path: Path
     ) -> str:
-        """Extract data type from file path"""
 
         path_str = str(
             file_path
@@ -664,23 +639,20 @@ class ChromaEmbeddingPipelineTextOnly:
         elif "flight_plan" in path_str:
             return "flight_plan"
 
-        else:
-            return "document"
+        return "document"
+
+
+    # -----------------------------------------------------
+    # Document Category
+    # -----------------------------------------------------
 
     def extract_document_category_from_filename(
         self,
         filename: str
     ) -> str:
-        """
-        Extract document category from filename
-        for better organization
-        """
 
-        filename_lower = (
-            filename.lower()
-        )
+        filename_lower = filename.lower()
 
-        # Apollo transcript types
         if "pao" in filename_lower:
             return "public_affairs_officer"
 
@@ -693,11 +665,9 @@ class ChromaEmbeddingPipelineTextOnly:
         elif "flight_plan" in filename_lower:
             return "flight_plan"
 
-        # Challenger audio
         elif "mission_audio" in filename_lower:
             return "mission_audio"
 
-        # NASA archive documents
         elif "ntrs" in filename_lower:
             return "nasa_archive"
 
@@ -707,26 +677,20 @@ class ChromaEmbeddingPipelineTextOnly:
         elif "19710015566" in filename_lower:
             return "mission_report"
 
-        # General categories
         elif "full_text" in filename_lower:
             return "complete_document"
 
-        else:
-            return "general_document"
+        return "general_document"
+
+
+    # -----------------------------------------------------
+    # Scan Files
+    # -----------------------------------------------------
 
     def scan_text_files_only(
         self,
         base_path: str
     ) -> List[Path]:
-        """
-        Scan data directories for text files only.
-
-        Args:
-            base_path: Base directory path
-
-        Returns:
-            List of text file paths to process
-        """
 
         base_path = Path(
             base_path
@@ -743,7 +707,8 @@ class ChromaEmbeddingPipelineTextOnly:
         for data_dir in data_dirs:
 
             dir_path = (
-                base_path / data_dir
+                base_path
+                / data_dir
             )
 
             if dir_path.exists():
@@ -790,8 +755,7 @@ class ChromaEmbeddingPipelineTextOnly:
             )
 
         logger.info(
-            f"Total text files to "
-            f"process: "
+            f"Total text files to process: "
             f"{len(filtered_files)}"
         )
 
@@ -828,6 +792,11 @@ class ChromaEmbeddingPipelineTextOnly:
 
         return filtered_files
 
+
+    # -----------------------------------------------------
+    # Add Documents
+    # -----------------------------------------------------
+
     def add_documents_to_collection(
         self,
         documents: List[
@@ -841,13 +810,12 @@ class ChromaEmbeddingPipelineTextOnly:
         update_mode: str = "skip"
     ) -> Dict[str, int]:
         """
-        Add documents to ChromaDB collection
-        in batches with update handling.
+        Add documents to ChromaDB.
 
         update_mode:
-        skip
-        update
-        replace
+        - skip
+        - update
+        - replace
         """
 
         if not documents:
@@ -864,16 +832,74 @@ class ChromaEmbeddingPipelineTextOnly:
             "skipped": 0
         }
 
+
+        # -------------------------------------------------
+        # SAFE REPLACE MODE
+        # Delete only documents belonging to exact file.
+        # -------------------------------------------------
+
         if update_mode == "replace":
 
-            self.delete_documents_by_source(
-                file_path.stem
+            existing_docs = (
+                self.collection.get()
             )
+
+            ids_to_delete = []
+
+            target_file_path = str(
+                file_path
+            )
+
+            metadatas = (
+                existing_docs.get(
+                    "metadatas",
+                    []
+                )
+            )
+
+            existing_ids = (
+                existing_docs.get(
+                    "ids",
+                    []
+                )
+            )
+
+            for i, metadata in enumerate(
+                metadatas
+            ):
+
+                if (
+                    metadata
+                    and
+                    metadata.get(
+                        "file_path"
+                    ) == target_file_path
+                ):
+
+                    ids_to_delete.append(
+                        existing_ids[i]
+                    )
+
+            if ids_to_delete:
+
+                self.collection.delete(
+                    ids=ids_to_delete
+                )
+
+                logger.info(
+                    f"Deleted "
+                    f"{len(ids_to_delete)} "
+                    f"existing chunks "
+                    f"for exact file: "
+                    f"{file_path}"
+                )
+
 
         batch_ids = []
         batch_documents = []
         batch_metadatas = []
         batch_embeddings = []
+
 
         def flush_batch():
 
@@ -896,6 +922,7 @@ class ChromaEmbeddingPipelineTextOnly:
             batch_metadatas.clear()
             batch_embeddings.clear()
 
+
         for text, metadata in documents:
 
             doc_id = (
@@ -915,9 +942,12 @@ class ChromaEmbeddingPipelineTextOnly:
 
                 if update_mode == "skip":
 
-                    stats["skipped"] += 1
+                    stats[
+                        "skipped"
+                    ] += 1
 
                     continue
+
 
                 elif update_mode == "update":
 
@@ -930,15 +960,13 @@ class ChromaEmbeddingPipelineTextOnly:
                     )
 
                     if success:
-                        stats["updated"] += 1
 
-                    else:
-                        logger.error(
-                            "Failed to update "
-                            f"document: {doc_id}"
-                        )
+                        stats[
+                            "updated"
+                        ] += 1
 
                     continue
+
 
             try:
 
@@ -964,12 +992,14 @@ class ChromaEmbeddingPipelineTextOnly:
                     embedding
                 )
 
+
                 if (
                     len(batch_ids)
                     >= batch_size
                 ):
 
                     flush_batch()
+
 
             except Exception as e:
 
@@ -978,9 +1008,15 @@ class ChromaEmbeddingPipelineTextOnly:
                     f"document {doc_id}: {e}"
                 )
 
+
         flush_batch()
 
         return stats
+
+
+    # -----------------------------------------------------
+    # Process All Data
+    # -----------------------------------------------------
 
     def process_all_text_data(
         self,
@@ -988,26 +1024,31 @@ class ChromaEmbeddingPipelineTextOnly:
         update_mode: str = "skip",
         batch_size: int = 50
     ) -> Dict[str, Any]:
-        """
-        Process all text files and add
-        to ChromaDB.
-        """
 
         stats = {
+
             "files_processed": 0,
+
             "documents_added": 0,
+
             "documents_updated": 0,
+
             "documents_skipped": 0,
+
             "errors": 0,
+
             "total_chunks": 0,
+
             "missions": {}
         }
+
 
         files_to_process = (
             self.scan_text_files_only(
                 base_path
             )
         )
+
 
         if not files_to_process:
 
@@ -1018,6 +1059,7 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return stats
 
+
         for file_path in files_to_process:
 
             try:
@@ -1027,11 +1069,13 @@ class ChromaEmbeddingPipelineTextOnly:
                     f"{file_path}"
                 )
 
+
                 documents = (
                     self.process_text_file(
                         file_path
                     )
                 )
+
 
                 mission = (
                     self.extract_mission_from_path(
@@ -1039,19 +1083,26 @@ class ChromaEmbeddingPipelineTextOnly:
                     )
                 )
 
+
                 if mission not in stats[
                     "missions"
                 ]:
 
-                    stats["missions"][
-                        mission
-                    ] = {
+                    stats[
+                        "missions"
+                    ][mission] = {
+
                         "files": 0,
+
                         "chunks": 0,
+
                         "added": 0,
+
                         "updated": 0,
+
                         "skipped": 0
                     }
+
 
                 result = (
                     self.add_documents_to_collection(
@@ -1062,9 +1113,11 @@ class ChromaEmbeddingPipelineTextOnly:
                     )
                 )
 
+
                 stats[
                     "files_processed"
                 ] += 1
+
 
                 stats[
                     "total_chunks"
@@ -1072,11 +1125,13 @@ class ChromaEmbeddingPipelineTextOnly:
                     documents
                 )
 
+
                 stats[
                     "documents_added"
                 ] += result[
                     "added"
                 ]
+
 
                 stats[
                     "documents_updated"
@@ -1084,49 +1139,53 @@ class ChromaEmbeddingPipelineTextOnly:
                     "updated"
                 ]
 
+
                 stats[
                     "documents_skipped"
                 ] += result[
                     "skipped"
                 ]
 
-                stats[
-                    "missions"
-                ][mission][
+
+                mission_stats = (
+                    stats[
+                        "missions"
+                    ][mission]
+                )
+
+
+                mission_stats[
                     "files"
                 ] += 1
 
-                stats[
-                    "missions"
-                ][mission][
+
+                mission_stats[
                     "chunks"
                 ] += len(
                     documents
                 )
 
-                stats[
-                    "missions"
-                ][mission][
+
+                mission_stats[
                     "added"
                 ] += result[
                     "added"
                 ]
 
-                stats[
-                    "missions"
-                ][mission][
+
+                mission_stats[
                     "updated"
                 ] += result[
                     "updated"
                 ]
 
-                stats[
-                    "missions"
-                ][mission][
+
+                mission_stats[
                     "skipped"
                 ] += result[
                     "skipped"
                 ]
+
 
             except Exception as e:
 
@@ -1139,16 +1198,22 @@ class ChromaEmbeddingPipelineTextOnly:
                     "errors"
                 ] += 1
 
+
         return stats
+
+
+    # -----------------------------------------------------
+    # Collection Info
+    # -----------------------------------------------------
 
     def get_collection_info(
         self
     ) -> Dict[str, Any]:
-        """Get information about the ChromaDB collection"""
 
         try:
 
             return {
+
                 "collection_name":
                     self.collection.name,
 
@@ -1176,21 +1241,16 @@ class ChromaEmbeddingPipelineTextOnly:
                 "error": str(e)
             }
 
+
+    # -----------------------------------------------------
+    # Query Collection
+    # -----------------------------------------------------
+
     def query_collection(
         self,
         query_text: str,
         n_results: int = 5
     ) -> Dict[str, Any]:
-        """
-        Query the collection for testing.
-
-        Args:
-            query_text: Query text
-            n_results: Number of results
-
-        Returns:
-            Query results
-        """
 
         try:
 
@@ -1225,10 +1285,14 @@ class ChromaEmbeddingPipelineTextOnly:
 
             return {}
 
+
+    # -----------------------------------------------------
+    # Collection Statistics
+    # -----------------------------------------------------
+
     def get_collection_stats(
         self
     ) -> Dict[str, Any]:
-        """Get detailed statistics about the collection"""
 
         try:
 
@@ -1236,16 +1300,19 @@ class ChromaEmbeddingPipelineTextOnly:
                 self.collection.get()
             )
 
-            if not all_docs[
+
+            if not all_docs.get(
                 "metadatas"
-            ]:
+            ):
 
                 return {
                     "error":
                     "No documents in collection"
                 }
 
+
             stats = {
+
                 "total_documents":
                     len(
                         all_docs[
@@ -1262,8 +1329,11 @@ class ChromaEmbeddingPipelineTextOnly:
                 "file_types": {}
             }
 
+
             for metadata in (
-                all_docs["metadatas"]
+                all_docs[
+                    "metadatas"
+                ]
             ):
 
                 mission = metadata.get(
@@ -1286,9 +1356,11 @@ class ChromaEmbeddingPipelineTextOnly:
                     "unknown"
                 )
 
+
                 stats[
                     "missions"
                 ][mission] = (
+
                     stats[
                         "missions"
                     ].get(
@@ -1298,9 +1370,11 @@ class ChromaEmbeddingPipelineTextOnly:
                     + 1
                 )
 
+
                 stats[
                     "data_types"
                 ][data_type] = (
+
                     stats[
                         "data_types"
                     ].get(
@@ -1310,9 +1384,11 @@ class ChromaEmbeddingPipelineTextOnly:
                     + 1
                 )
 
+
                 stats[
                     "document_categories"
                 ][doc_category] = (
+
                     stats[
                         "document_categories"
                     ].get(
@@ -1322,9 +1398,11 @@ class ChromaEmbeddingPipelineTextOnly:
                     + 1
                 )
 
+
                 stats[
                     "file_types"
                 ][file_type] = (
+
                     stats[
                         "file_types"
                     ].get(
@@ -1334,7 +1412,9 @@ class ChromaEmbeddingPipelineTextOnly:
                     + 1
                 )
 
+
             return stats
+
 
         except Exception as e:
 
@@ -1348,8 +1428,11 @@ class ChromaEmbeddingPipelineTextOnly:
             }
 
 
+# ---------------------------------------------------------
+# Main
+# ---------------------------------------------------------
+
 def main():
-    """Main function"""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -1358,11 +1441,13 @@ def main():
         )
     )
 
+
     parser.add_argument(
         "--data-path",
         default=".",
         help="Path to data directories"
     )
+
 
     parser.add_argument(
         "--openai-key",
@@ -1370,11 +1455,13 @@ def main():
         help="OpenAI API key"
     )
 
+
     parser.add_argument(
         "--chroma-dir",
         default="./chroma_db_openai",
         help="ChromaDB persist directory"
     )
+
 
     parser.add_argument(
         "--collection-name",
@@ -1382,11 +1469,13 @@ def main():
         help="Collection name"
     )
 
+
     parser.add_argument(
         "--embedding-model",
         default="text-embedding-3-small",
         help="OpenAI embedding model"
     )
+
 
     parser.add_argument(
         "--chunk-size",
@@ -1395,6 +1484,7 @@ def main():
         help="Text chunk size"
     )
 
+
     parser.add_argument(
         "--chunk-overlap",
         type=int,
@@ -1402,12 +1492,14 @@ def main():
         help="Chunk overlap size"
     )
 
+
     parser.add_argument(
         "--batch-size",
         type=int,
         default=50,
-        help="Batch size for processing"
+        help="Batch size"
     )
+
 
     parser.add_argument(
         "--update-mode",
@@ -1423,37 +1515,41 @@ def main():
         )
     )
 
+
     parser.add_argument(
         "--test-query",
         help="Test query after processing"
     )
 
+
     parser.add_argument(
         "--stats-only",
         action="store_true",
-        help=(
-            "Only show collection "
-            "statistics"
-        )
+        help="Only show collection statistics"
     )
+
 
     parser.add_argument(
         "--delete-source",
         help=(
             "Delete all documents from "
-            "a specific source pattern"
+            "a source pattern"
         )
     )
 
+
     args = parser.parse_args()
+
 
     logger.info(
         "Initializing ChromaDB "
         "Embedding Pipeline..."
     )
 
+
     pipeline = (
         ChromaEmbeddingPipelineTextOnly(
+
             openai_api_key=
                 args.openai_key,
 
@@ -1474,6 +1570,7 @@ def main():
         )
     )
 
+
     if args.delete_source:
 
         deleted_count = (
@@ -1483,13 +1580,14 @@ def main():
         )
 
         logger.info(
-            f"Deleted {deleted_count} "
-            f"documents matching "
-            f"source pattern: "
+            f"Deleted "
+            f"{deleted_count} documents "
+            f"matching source pattern: "
             f"{args.delete_source}"
         )
 
         return
+
 
     if args.stats_only:
 
@@ -1511,78 +1609,101 @@ def main():
 
         return
 
+
     logger.info(
         "Starting text data processing "
         f"with update mode: "
         f"{args.update_mode}"
     )
 
+
     start_time = time.time()
+
 
     stats = (
         pipeline.process_all_text_data(
+
             args.data_path,
+
             update_mode=
                 args.update_mode,
+
             batch_size=
                 args.batch_size
         )
     )
 
-    end_time = time.time()
 
     processing_time = (
-        end_time - start_time
+        time.time()
+        - start_time
     )
 
-    logger.info("=" * 60)
+
+    logger.info(
+        "=" * 60
+    )
+
     logger.info(
         "PROCESSING COMPLETE"
     )
-    logger.info("=" * 60)
+
+    logger.info(
+        "=" * 60
+    )
+
 
     logger.info(
         "Files processed: "
         f"{stats['files_processed']}"
     )
 
+
     logger.info(
         "Total chunks created: "
         f"{stats['total_chunks']}"
     )
 
+
     logger.info(
-        "Documents added to collection: "
+        "Documents added: "
         f"{stats['documents_added']}"
     )
 
+
     logger.info(
-        "Documents updated in collection: "
+        "Documents updated: "
         f"{stats['documents_updated']}"
     )
 
+
     logger.info(
-        "Documents skipped "
-        "(already exist): "
+        "Documents skipped: "
         f"{stats['documents_skipped']}"
     )
+
 
     logger.info(
         f"Errors: "
         f"{stats['errors']}"
     )
 
+
     logger.info(
         "Processing time: "
         f"{processing_time:.2f} seconds"
     )
 
+
     logger.info(
         "\nMission breakdown:"
     )
 
+
     for mission, mission_stats in (
-        stats["missions"].items()
+        stats[
+            "missions"
+        ].items()
     ):
 
         logger.info(
@@ -1600,19 +1721,23 @@ def main():
             f"{mission_stats['skipped']}"
         )
 
+
     collection_info = (
         pipeline.get_collection_info()
     )
+
 
     logger.info(
         "\nCollection: "
         f"{collection_info.get('collection_name', 'N/A')}"
     )
 
+
     logger.info(
         "Total documents in collection: "
         f"{collection_info.get('document_count', 'N/A')}"
     )
+
 
     if args.test_query:
 
@@ -1621,25 +1746,28 @@ def main():
             f"'{args.test_query}'"
         )
 
+
         results = (
             pipeline.query_collection(
                 args.test_query
             )
         )
 
+
         if (
             results
             and
-            "documents" in results
-            and
-            results["documents"]
+            results.get(
+                "documents"
+            )
         ):
 
             logger.info(
-                "Found "
+                f"Found "
                 f"{len(results['documents'][0])} "
-                "results:"
+                f"results:"
             )
+
 
             for i, doc in enumerate(
                 results[
@@ -1648,9 +1776,11 @@ def main():
             ):
 
                 logger.info(
-                    f"Result {i + 1}: "
+                    f"Result "
+                    f"{i + 1}: "
                     f"{doc[:200]}..."
                 )
+
 
     logger.info(
         "Pipeline completed successfully!"
